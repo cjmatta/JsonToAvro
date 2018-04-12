@@ -1,21 +1,16 @@
 package com.github.cjmatta.kafka.streams;
 
-import com.sun.tools.javah.Gen;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
-import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.serializers.*;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.common.serialization.*;
 import org.apache.kafka.streams.Consumed;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
-import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Produced;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,7 +104,7 @@ public class JsonToAvroConverterApp {
       log.error("Avro Schema not found!: " + e.getMessage());
       System.exit(1);
     } catch (IOException e) {
-      log.error("Problem reading file: ", e.getMessage());
+      log.error("Problem reading Avro schema file: ", e.getMessage());
       System.exit(1);
     }
     return null;
