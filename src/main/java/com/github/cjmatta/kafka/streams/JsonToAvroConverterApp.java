@@ -1,5 +1,6 @@
 package com.github.cjmatta.kafka.streams;
 
+import com.sun.tools.javah.Gen;
 import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.serializers.*;
@@ -7,38 +8,32 @@ import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.kafka.common.serialization.Serde;
-import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.common.serialization.Serializer;
-import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.common.serialization.*;
 import org.apache.kafka.streams.Consumed;
+import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.Produced;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.List;
 import java.util.Properties;
 
 public class JsonToAvroConverterApp {
   private static final Logger log = LoggerFactory.getLogger(JsonToAvroConverterApp.class);
   private static Properties props = null;
+  private static KafkaStreams streams;
   private static Namespace namespace = null;
   private static String sourceTopic;
   private static String destTopic;
 
-  private static KafkaJsonDeserializer jsonDeserializer = new KafkaJsonDeserializer();
-  private static KafkaJsonSerializer jsonSerializer = new KafkaJsonSerializer();
-
-  private static final Serde jsonSerde = Serdes.serdeFrom(jsonSerializer, jsonDeserializer);
-
-  private static KafkaAvroSerializer avroSerializer = new KafkaAvroSerializer();
-
-
+  private static JsonToGenericAvroRecordDeserializer jsonDeserializer;
+  private static KafkaAvroSerializer jsonSerializer = new KafkaAvroSerializer();
 
 
   public static void main (String[] args) {
@@ -72,20 +67,52 @@ public class JsonToAvroConverterApp {
     sourceTopic = namespace.getString("source_topic");
     destTopic = namespace.getString("dest_topic");
 
-
     runStreamsApp();
+
+    // Add shutdown hook to respond to SIGTERM and gracefully close Kafka Streams
+    Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+      @Override
+      public void run() {
+        stop();
+      }
+    }));
   }
 
   private static void runStreamsApp() {
+    CachedSchemaRegistryClient schemaRegistryClient = new CachedSchemaRegistryClient(props.getProperty("schema.registry.url"), 1000);
+    Serializer avroSerializer = new KafkaAvroSerializer(schemaRegistryClient);
+    jsonDeserializer = new JsonToGenericAvroRecordDeserializer(readSchema(namespace.get("avro_schema")));
+
+    Serde<String> keySerde = Serdes.String();
+    Serde valueSerde = Serdes.serdeFrom(avroSerializer, jsonDeserializer);
 
     final StreamsBuilder builder = new StreamsBuilder();
-    final KStream<String, Object> inputStream = builder.stream(sourceTopic,
-      Consumed.with(Serdes.String(), jsonSerde));
+    builder.stream(sourceTopic, Consumed.with(keySerde, valueSerde))
+      .to(destTopic, Produced.with(keySerde, valueSerde));
+
+    streams = new KafkaStreams(builder.build(), props);
+    streams.cleanUp();
+    streams.start();
+
   }
 
   private static void stop()  {
+    streams.close();
 
+  }
 
+  private static Schema readSchema (String schemaPath) {
+    Schema schema;
+    try {
+      schema = new Schema.Parser().parse(new FileInputStream(schemaPath));
+    } catch (FileNotFoundException e) {
+      log.error("Avro Schema not found!: " + e.getMessage());
+      System.exit(1);
+    } catch (IOException e) {
+      log.error("Problem reading file: ", e.getMessage());
+      System.exit(1);
+    }
+    return null;
   }
 
   private static Properties loadProps (String filename) {
