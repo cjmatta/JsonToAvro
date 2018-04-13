@@ -21,17 +21,12 @@ package com.github.cjmatta.kafka.streams;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericArray;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.reflect.ReflectData;
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Deserializer;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonParser;
-import org.codehaus.jackson.JsonToken;
-import org.codehaus.jackson.node.TreeTraversingParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,32 +35,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class JsonToGenericAvroRecordDeserializer implements Deserializer<GenericRecord> {
-  private Logger log = LoggerFactory.getLogger(JsonToGenericAvroRecordDeserializer.class);
+public class JsonToGenericAvroRecordConverter {
+  private Logger log = LoggerFactory.getLogger(JsonToGenericAvroRecordConverter.class);
   private Schema schema;
-  private ObjectMapper objectMapper = new ObjectMapper();
 
-  public JsonToGenericAvroRecordDeserializer(Schema schema) { this.schema = schema; }
+  public JsonToGenericAvroRecordConverter(Schema schema) { this.schema = schema; }
 
-  @Override
-  public void configure(Map<String, ?> map, boolean b) {
-  }
 
-  @Override
-  public GenericRecord deserialize(final String topic, final byte[] bytes) {
-    if (bytes == null) {
-      return null;
-    }
+  public GenericRecord getGenericRecord (JsonNode jsonNode) throws IOException {
 
-    try {
-      return getGenericRecord(bytes);
-    } catch (Exception e) {
-      throw new SerializationException("Error deserializing JSON: " + e);
-    }
-  }
-
-  private GenericRecord getGenericRecord (byte[] bytes) throws IOException {
-    JsonNode jsonNode = objectMapper.readTree(bytes);
     GenericRecord genericRecord = new GenericData.Record(this.schema);
 
     for (Schema.Field field: schema.getFields()) {
@@ -95,18 +73,21 @@ public class JsonToGenericAvroRecordDeserializer implements Deserializer<Generic
           return jsonNode.toString();
         }
       case ENUM:
-        return jsonNode.toString();
+        String value = jsonNode.toString();
+        List<String> enumSymbols = schema.getEnumSymbols();
+        if (!enumSymbols.contains(value)) {
+          throw new IOException("Value" + value + "not in Avro Enum symbols!");
+        }
       case FIXED:
         return jsonNode.toString();
       case LONG:
         return jsonNode.asLong();
       case ARRAY:
         Schema elementSchema = schema.getElementType();
+        List<Object> elements = new ArrayList<>();
 
-        ArrayNode arrayNode = (ArrayNode) jsonNode;
-        ArrayList<Object> elements = new ArrayList<>();
-        for(int i = 0; i < arrayNode.size(); i++) {
-          elements.add(enforceType(elementSchema, arrayNode.get(i)));
+        for(int i = 0; i < jsonNode.size(); i++) {
+          elements.add(enforceType(elementSchema, jsonNode.get(i)));
         }
 
         return elements;
@@ -127,8 +108,4 @@ public class JsonToGenericAvroRecordDeserializer implements Deserializer<Generic
     }
   }
 
-  @Override
-  public void close() {
-
-  }
 }

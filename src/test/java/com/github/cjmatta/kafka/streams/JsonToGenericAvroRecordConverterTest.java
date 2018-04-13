@@ -18,18 +18,23 @@
 
 package com.github.cjmatta.kafka.streams;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
+
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.junit.Assert.*;
 
-public class JsonToGenericAvroRecordDeserializerTest {
+public class JsonToGenericAvroRecordConverterTest {
+  private ObjectMapper objectMapper = new ObjectMapper();
 
   @Test
-  public void testStringDeserialize () {
+  public void testStringDeserialize() throws IOException {
     String avsc = "{" +
       "\"namespace\": \"com.github.cjmatta.kafka.streams.avro.test\"," +
       "\"type\": \"record\"," +
@@ -40,40 +45,47 @@ public class JsonToGenericAvroRecordDeserializerTest {
       "}]" +
       "}";
     String json = "{\"test\": \"test\"}";
-    JsonToGenericAvroRecordDeserializer deserializer = new JsonToGenericAvroRecordDeserializer(new Schema.Parser().parse(avsc));
-    GenericRecord record = deserializer.deserialize(null, json.getBytes());
+
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
     assertEquals("test", record.get("test"));
   }
 
   @Test
-  public void testIntDeserialize () {
+  public void testIntDeserialize () throws IOException {
     String avsc = "{\"namespace\": \"com.github.cjmatta.kafka.streams.avro.test\",\"type\": \"record\",\"name\": \"TestRecord\",\"fields\": [{\"name\": \"test\", \"type\": \"int\"}]}";
     String json = "{\"test\": 123}";
-    JsonToGenericAvroRecordDeserializer deserializer = new JsonToGenericAvroRecordDeserializer(new Schema.Parser().parse(avsc));
-    GenericRecord record = deserializer.deserialize(null, json.getBytes());
+
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
     assertEquals(123, record.get("test"));
   }
 
   @Test
-  public void testBooleanDeserialize () {
+  public void testBooleanDeserialize () throws IOException {
     String avsc = "{\"namespace\": \"com.github.cjmatta.kafka.streams.avro.test\",\"type\": \"record\",\"name\": \"TestRecord\",\"fields\": [{\"name\": \"test\", \"type\": \"boolean\"}]}";
     String json = "{\"test\": true}";
-    JsonToGenericAvroRecordDeserializer deserializer = new JsonToGenericAvroRecordDeserializer(new Schema.Parser().parse(avsc));
-    GenericRecord record = deserializer.deserialize(null, json.getBytes());
+
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
     assertEquals(true, record.get("test"));
   }
 
   @Test
-  public void testNullDeserialize () {
+  public void testNullDeserialize () throws IOException {
     String avsc = "{\"namespace\": \"com.github.cjmatta.kafka.streams.avro.test\",\"type\": \"record\",\"name\": \"TestRecord\",\"fields\": [{\"name\": \"test\", \"type\": \"string\"}]}";
     String json = "{\"test\": null}";
-    JsonToGenericAvroRecordDeserializer deserializer = new JsonToGenericAvroRecordDeserializer(new Schema.Parser().parse(avsc));
-    GenericRecord record = deserializer.deserialize(null, json.getBytes());
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
     assertEquals("null", record.get("test"));
   }
 
   @Test
-  public void testMultiRecordDeserialize () {
+  public void testMultiRecordDeserialize () throws IOException {
     String avsc = "{" +
       "\"namespace\": \"com.github.cjmatta.kafka.streams.avro.test\"," +
       "\"type\": \"record\"," +
@@ -87,14 +99,15 @@ public class JsonToGenericAvroRecordDeserializerTest {
       "}]" +
       "}";
     String json = "{\"test\": \"test\", \"othertest\": 123}";
-    JsonToGenericAvroRecordDeserializer deserializer = new JsonToGenericAvroRecordDeserializer(new Schema.Parser().parse(avsc));
-    GenericRecord record = deserializer.deserialize(null, json.getBytes());
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
     assertEquals("test", record.get("test"));
     assertEquals(123, record.get("othertest"));
   }
 
   @Test
-  public void testArrayRecordDeserialize () {
+  public void testArrayRecordDeserialize () throws IOException {
     String avsc = "{" +
       "\"namespace\": \"com.github.cjmatta.kafka.streams.avro.test\"," +
       "\"type\": \"record\"," +
@@ -108,8 +121,9 @@ public class JsonToGenericAvroRecordDeserializerTest {
       "}]" +
       "}";
     String json = "{\"test\": [\"one\", \"two\", \"three\"]}";
-    JsonToGenericAvroRecordDeserializer deserializer = new JsonToGenericAvroRecordDeserializer(new Schema.Parser().parse(avsc));
-    GenericRecord record = deserializer.deserialize(null, json.getBytes());
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
     List<String> arrayContents = (List<String>) record.get("test");
     assertEquals(3, arrayContents.size());
     assertEquals("one", arrayContents.get(0));
