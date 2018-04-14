@@ -88,7 +88,7 @@ public class JsonToGenericAvroRecordConverterTest {
     JsonNode jsonNode = objectMapper.readTree(json);
     JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
     GenericRecord record = converter.getGenericRecord(jsonNode);
-    assertEquals("null", record.get("test"));
+    assertEquals(null, record.get("test"));
   }
 
   @Test
