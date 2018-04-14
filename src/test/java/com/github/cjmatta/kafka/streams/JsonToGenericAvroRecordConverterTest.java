@@ -20,18 +20,25 @@ package com.github.cjmatta.kafka.streams;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.avro.AvroTypeException;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.*;
 
 public class JsonToGenericAvroRecordConverterTest {
   private ObjectMapper objectMapper = new ObjectMapper();
+
+  @Rule
+  public final ExpectedException exception = ExpectedException.none();
 
   @Test
   public void testStringDeserialize() throws IOException {
@@ -85,6 +92,17 @@ public class JsonToGenericAvroRecordConverterTest {
   }
 
   @Test
+  public void testDefaultValueDeserialize () throws IOException {
+    String avsc = "{\"namespace\": \"com.github.cjmatta.kafka.streams.avro.test\",\"type\": \"record\",\"name\": \"TestRecord\",\"fields\": [{\"name\": \"test\", \"type\": \"string\", \"default\": \"john doe\"}]}";
+    String json = "{\"test\": null}";
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
+    assertEquals("john doe", record.get("test"));
+  }
+
+
+  @Test
   public void testMultiRecordDeserialize () throws IOException {
     String avsc = "{" +
       "\"namespace\": \"com.github.cjmatta.kafka.streams.avro.test\"," +
@@ -130,6 +148,112 @@ public class JsonToGenericAvroRecordConverterTest {
     assertEquals("two", arrayContents.get(1));
     assertEquals("three", arrayContents.get(2));
   }
+
+  @Test
+  public void testMapRecordDeserialize () throws IOException {
+    String avsc = "{" +
+      "\"namespace\": \"com.github.cjmatta.kafka.streams.avro.test\"," +
+      "\"type\": \"record\"," +
+      "\"name\": \"TestRecord\"," +
+      "\"fields\": [{" +
+      "\"name\": \"test\"," +
+      "\"type\": {" +
+      "\"type\": \"map\"," +
+      "\"values\": \"string\"" +
+      "}" +
+      "}]" +
+      "}";
+    String json = "{" +
+      "\"test\": {" +
+      "\"item1key\": \"item1value\"," +
+      "\"item2key\": \"item2value\"" +
+      "}" +
+      "}";
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
+    Map<String, Object> mapContents = (Map<String, Object>) record.get("test");
+    assertEquals("item1value", mapContents.get("item1key"));
+
+  }
+
+  @Test
+  public void testListOfGenericRecordsDeserialize () throws IOException {
+    String avsc = "{" +
+      "\"name\": \"Parent\"," +
+      "\"type\": \"record\"," +
+      "\"fields\": [{" +
+      "\"name\": \"children\"," +
+      "\"type\": {" +
+      "\"type\": \"array\"," +
+      "\"items\": {" +
+      "\"name\": \"Child\"," +
+      "\"type\": \"record\"," +
+      "\"fields\": [{" +
+      "\"name\": \"name\"," +
+      "\"type\": \"string\"" +
+      "}]" +
+      "}" +
+      "}" +
+      "}]" +
+      "}";
+    String json = "{" +
+      "\"children\": [{" +
+      "\"name\": \"Sam\"" +
+      "}, {" +
+      "\"name\": \"Alice\"" +
+      "}]" +
+      "}";
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
+    List<GenericRecord> childrenRecord = (List<GenericRecord>) record.get("children");
+    assertTrue(childrenRecord.get(0) != null);
+    assertEquals("Sam", childrenRecord.get(0).get("name"));
+  }
+
+  @Test
+  public void testEnumDeserialize () throws IOException {
+    String avsc = "{" +
+      "\"name\": \"PlayingCard\"," +
+      "\"type\": \"record\"," +
+      "\"fields\": [{" +
+      "\"name\": \"suit\"," +
+      "\"type\": {" +
+      "\"type\": \"enum\"," +
+      "\"name\": \"suit\"," +
+      "\"symbols\": [\"CLUB\", \"HEART\", \"SPADE\", \"DIAMOND\"]" +
+      "}" +
+      "}]" +
+      "}";
+    String json = "{\"suit\": \"CLUB\"}";
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    GenericRecord record = converter.getGenericRecord(jsonNode);
+    assertEquals("CLUB", record.get("suit"));
+  }
+
+  @Test
+  public void testEnumBadEntryDeserialize () throws IOException {
+    String avsc = "{" +
+      "\"name\": \"PlayingCard\"," +
+      "\"type\": \"record\"," +
+      "\"fields\": [{" +
+      "\"name\": \"suit\"," +
+      "\"type\": {" +
+      "\"type\": \"enum\"," +
+      "\"name\": \"suit\"," +
+      "\"symbols\": [\"CLUB\", \"HEART\", \"SPADE\", \"DIAMOND\"]" +
+      "}" +
+      "}]" +
+      "}";
+    String json = "{\"suit\": \"CLOVER\"}";
+    JsonNode jsonNode = objectMapper.readTree(json);
+    JsonToGenericAvroRecordConverter converter = new JsonToGenericAvroRecordConverter(new Schema.Parser().parse(avsc));
+    exception.expect(AvroTypeException.class);
+    GenericRecord record = converter.getGenericRecord(jsonNode);
+  }
+
 
 
 
