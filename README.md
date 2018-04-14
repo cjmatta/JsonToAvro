@@ -47,7 +47,7 @@ Corresponding Avro AVSC:
     {"name": "bytes", "type": "string"},
     {"name": "ip", "type": "string"},
     {"name": "time", "type": "string"},
-    {"name": "userid", "type": "integer"},
+    {"name": "userid", "type": "int"},
     {"name": "_time", "type": "long"},
     {"name": "status", "type": "string"}
     ]
